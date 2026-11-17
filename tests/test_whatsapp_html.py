@@ -112,7 +112,7 @@ class WhatsAppHtmlTests(unittest.TestCase):
             "midias/videos/VID-20260707-WA0000.mp4",
         )
 
-    def test_numbered_files_are_associated_with_hidden_media_in_order(self):
+    def test_hidden_media_caption_is_not_treated_as_a_filename(self):
         content = "\n".join(
             [
                 "11/11/2026 19:44 - Rodrigo Lira: <Mídia oculta>",
@@ -131,12 +131,12 @@ class WhatsAppHtmlTests(unittest.TestCase):
 
             messages = whatsapp_html.parse_export(export_path, output_dir=root)
 
-        self.assertEqual(messages[0].attachment_name, "Multa São Paulo.pdf")
-        self.assertEqual(messages[0].attachment_url, "1_MULTA_21_10.pdf")
-        self.assertEqual(messages[0].attachment_source_name, "1_MULTA_21_10.pdf")
-        self.assertEqual(messages[1].attachment_name, "Multa Carapicuiba.pdf")
-        self.assertEqual(messages[1].attachment_url, "2_MULTA_21_10.pdf")
-        self.assertEqual(messages[1].attachment_source_name, "2_MULTA_21_10.pdf")
+        self.assertIsNone(messages[0].attachment_name)
+        self.assertIsNone(messages[0].attachment_url)
+        self.assertIn("Multa São Paulo.pdf", messages[0].text)
+        self.assertIsNone(messages[1].attachment_name)
+        self.assertIsNone(messages[1].attachment_url)
+        self.assertIn("Multa Carapicuiba.pdf", messages[1].text)
 
 
 if __name__ == "__main__":
