@@ -52,7 +52,8 @@ Se `-o` for omitido, o HTML será criado ao lado do TXT com o mesmo nome.
 
 ## Anexos
 
-Por padrão, o programa procura os anexos diretamente na mesma pasta do TXT.
+Por padrão, o programa procura os anexos na mesma pasta do TXT e também em
+seus subdiretórios.
 Também é possível indicar outra pasta:
 
 ```bash
@@ -61,8 +62,15 @@ python3 whatsapp_html.py conversa.txt \
   -o conversa.html
 ```
 
-Para que os anexos continuem visíveis, mantenha o HTML e os arquivos de mídia
-na organização utilizada durante a geração.
+Os links são calculados em relação ao local do HTML. Assim, o HTML pode ser
+salvo em outra pasta sem perder as imagens, vídeos, áudios e documentos. Para
+que continuem visíveis, não mova o HTML nem as mídias depois da geração; se
+mover, execute o conversor novamente.
+
+Ao terminar, o programa informa quantos anexos foram referenciados no TXT,
+quantos foram localizados e quantos não foram encontrados. Se as mídias
+estiverem em outro lugar, use `--media-dir` apontando para a pasta que as
+contém.
 
 ## Outras opções
 
