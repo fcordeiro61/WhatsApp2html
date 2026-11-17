@@ -17,12 +17,14 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 
 # Formato comum no Android:
@@ -82,16 +84,30 @@ def attachment_kind(filename: str) -> str:
     return "file"
 
 def build_attachment_index(media_dir: Optional[Path]) -> dict[str, Path]:
-    """Indexa somente arquivos diretamente na pasta informada. Não varre subdiretórios."""
+    """Indexa anexos na pasta informada e em seus subdiretórios."""
     if not media_dir or not media_dir.exists() or not media_dir.is_dir():
         return {}
 
     result: dict[str, Path] = {}
-    for f in media_dir.iterdir():
+    for f in media_dir.rglob("*"):
         if f.is_file():
             key = clean_filename(f.name).casefold()
             result.setdefault(key, f.resolve())
     return result
+
+
+def attachment_url_for(found: Path, output_dir: Path) -> str:
+    """Cria uma URL válida do HTML até o anexo localizado."""
+    found = found.resolve()
+    output_dir = output_dir.resolve()
+
+    try:
+        relative = os.path.relpath(found, start=output_dir)
+        # quote preserva as barras e protege espaços, #, ?, acentos etc.
+        return quote(Path(relative).as_posix(), safe="/:")
+    except ValueError:
+        # No Windows, caminhos em unidades diferentes não podem ser relativos.
+        return found.as_uri()
 
 
 def find_attachment_path(
@@ -148,13 +164,19 @@ def detect_message_start(line: str):
     return None
 
 
-def parse_export(path: Path, date_order: str = "dmy", media_dir: Optional[Path] = None) -> list[Message]:
+def parse_export(
+    path: Path,
+    date_order: str = "dmy",
+    media_dir: Optional[Path] = None,
+    output_dir: Optional[Path] = None,
+) -> list[Message]:
     raw = path.read_text(encoding="utf-8-sig", errors="replace")
     lines = raw.splitlines()
 
     # Por padrão, os anexos são procurados SOMENTE na mesma pasta do TXT.
     effective_media_dir = media_dir if media_dir is not None else path.resolve().parent
     attachment_index = build_attachment_index(effective_media_dir)
+    effective_output_dir = output_dir if output_dir is not None else path.resolve().parent
 
     messages: list[Message] = []
     current: dict | None = None
@@ -185,7 +207,7 @@ def parse_export(path: Path, date_order: str = "dmy", media_dir: Optional[Path] 
             attachment_name = clean_filename(am.group("name"))
             found = find_attachment_path(attachment_name, attachment_index)
             if found:
-                attachment_url = found.name
+                attachment_url = attachment_url_for(found, effective_output_dir)
                 attachment_type = attachment_kind(attachment_name)
         messages.append(
             Message(
@@ -878,10 +900,20 @@ def main() -> int:
     output = args.output or args.input.with_suffix(".html")
     title = args.title or args.input.stem
 
-    messages = parse_export(args.input, args.date_order, args.media_dir)
+    messages = parse_export(
+        args.input,
+        args.date_order,
+        args.media_dir,
+        output_dir=output.resolve().parent,
+    )
 
     referenced = sum(1 for m in messages if m.attachment_name)
     resolved = sum(1 for m in messages if m.attachment_url)
+    missing_names = [
+        m.attachment_name
+        for m in messages
+        if m.attachment_name and not m.attachment_url
+    ]
 
     if not messages:
         parser.error(
@@ -894,13 +926,23 @@ def main() -> int:
     )
 
     print(f"HTML criado: {output.resolve()}")
-    print("Links de anexos: relativos ao HTML (mesma pasta)")
+    print("Links de anexos: calculados em relação à pasta do HTML")
     print(f"Mensagens processadas: {len(messages)}")
     media_folder = args.media_dir.resolve() if args.media_dir else args.input.resolve().parent
+    media_files = (
+        sum(1 for item in media_folder.rglob("*") if item.is_file())
+        if media_folder.exists() and media_folder.is_dir()
+        else 0
+    )
     print(f"Pasta de anexos: {media_folder}")
+    print(f"Arquivos existentes nessa pasta: {media_files}")
     print(f"Anexos referenciados no TXT: {referenced}")
     print(f"Anexos localizados: {resolved}")
     print(f"Anexos não localizados: {referenced - resolved}")
+    if missing_names:
+        print("Primeiros anexos não encontrados:")
+        for name in missing_names[:5]:
+            print(f"  - {name}")
     return 0
 
 
