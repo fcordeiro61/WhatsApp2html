@@ -54,6 +54,58 @@ class WhatsAppHtmlTests(unittest.TestCase):
         self.assertIn("day <= dateTo", generated)
         self.assertIn("loadDateLimits();", generated)
 
+    def test_attachment_url_is_relative_to_html_output(self):
+        content = (
+            "06/05/2026 21:09 - Rodrigo: "
+            "\u200eIMG-20260506-WA0032.jpg (arquivo anexado)"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            export_dir = root / "exportacao"
+            output_dir = root / "html"
+            export_dir.mkdir()
+            output_dir.mkdir()
+            export_path = export_dir / "conversa.txt"
+            export_path.write_text(content, encoding="utf-8")
+            (export_dir / "IMG-20260506-WA0032.jpg").write_bytes(b"imagem")
+
+            messages = whatsapp_html.parse_export(
+                export_path,
+                output_dir=output_dir,
+            )
+
+        self.assertEqual(messages[0].attachment_name, "IMG-20260506-WA0032.jpg")
+        self.assertEqual(
+            messages[0].attachment_url,
+            "../exportacao/IMG-20260506-WA0032.jpg",
+        )
+
+    def test_attachment_is_found_in_media_subdirectory(self):
+        content = (
+            "07/07/2026 06:27 - Carlos: "
+            "VID-20260707-WA0000.mp4 (arquivo anexado)"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            export_path = root / "conversa.txt"
+            media_dir = root / "midias" / "videos"
+            media_dir.mkdir(parents=True)
+            export_path.write_text(content, encoding="utf-8")
+            (media_dir / "VID-20260707-WA0000.mp4").write_bytes(b"video")
+
+            messages = whatsapp_html.parse_export(
+                export_path,
+                media_dir=root / "midias",
+                output_dir=root,
+            )
+
+        self.assertEqual(
+            messages[0].attachment_url,
+            "midias/videos/VID-20260707-WA0000.mp4",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
