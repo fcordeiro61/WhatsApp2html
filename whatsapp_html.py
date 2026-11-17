@@ -44,7 +44,10 @@ IOS_RE = re.compile(
     r"(?P<body>.*)$"
 )
 
-SENDER_RE = re.compile(r"^(?P<sender>[^:]{1,100}):\s(?P<text>.*)$")
+# re.S permite que o conteúdo da mensagem continue em outras linhas. Sem isso,
+# qualquer legenda ou texto abaixo de um anexo era classificado como mensagem
+# do sistema, impedindo a criação da imagem, vídeo, áudio ou link.
+SENDER_RE = re.compile(r"^(?P<sender>[^:]{1,100}):\s(?P<text>.*)$", re.S)
 
 
 @dataclass
