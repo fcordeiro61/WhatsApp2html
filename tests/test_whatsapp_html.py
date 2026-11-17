@@ -55,9 +55,12 @@ class WhatsAppHtmlTests(unittest.TestCase):
         self.assertIn("loadDateLimits();", generated)
 
     def test_attachment_url_is_relative_to_html_output(self):
-        content = (
-            "06/05/2026 21:09 - Rodrigo: "
-            "\u200eIMG-20260506-WA0032.jpg (arquivo anexado)"
+        content = "\n".join(
+            [
+                "06/05/2026 21:09 - Rodrigo Lira: "
+                "\u200eIMG-20260506-WA0032.jpg (arquivo anexado)",
+                "1.000$✅",
+            ]
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -76,6 +79,9 @@ class WhatsAppHtmlTests(unittest.TestCase):
             )
 
         self.assertEqual(messages[0].attachment_name, "IMG-20260506-WA0032.jpg")
+        self.assertEqual(messages[0].sender, "Rodrigo Lira")
+        self.assertFalse(messages[0].is_system)
+        self.assertIn("1.000$✅", messages[0].text)
         self.assertEqual(
             messages[0].attachment_url,
             "../exportacao/IMG-20260506-WA0032.jpg",
