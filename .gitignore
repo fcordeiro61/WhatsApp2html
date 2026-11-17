@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Conversas e HTMLs gerados podem conter dados pessoais.
+*.txt
+*.html
+
+# Mídias exportadas do WhatsApp.
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.m4a
+*.aac
+*.ogg
+*.opus
+*.wav
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.zip
+*.rar
