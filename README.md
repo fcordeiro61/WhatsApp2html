@@ -72,11 +72,10 @@ quantos foram localizados e quantos não foram encontrados. Se as mídias
 estiverem em outro lugar, use `--media-dir` apontando para a pasta que as
 contém.
 
-Quando a exportação registra nomes descritivos no TXT, mas entrega arquivos
-numerados como `1_DOCUMENTO.pdf` e `2_DOCUMENTO.pdf`, o programa faz a
-associação automaticamente pela ordem. Isso só ocorre quando a quantidade e o
-tipo dos arquivos coincidem sem ambiguidade; o mapeamento utilizado é exibido
-no terminal.
+Quando o TXT contém `<Mídia oculta>`, o WhatsApp não registra o nome físico do
+arquivo. Uma legenda terminada em `.pdf` ou `.jpg` não é usada como nome do
+anexo, pois isso poderia ligar a mensagem ao arquivo errado. O texto permanece
+visível no HTML, mas nenhum vínculo é inventado.
 
 ## Outras opções
 
