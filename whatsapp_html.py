@@ -61,6 +61,7 @@ class Message:
     attachment_name: Optional[str] = None
     attachment_url: Optional[str] = None
     attachment_type: Optional[str] = None
+    attachment_source_name: Optional[str] = None
 
 
 ATTACHMENT_RE = re.compile(
@@ -138,6 +139,66 @@ def find_attachment_path(
     return None
 
 
+def natural_sort_key(path: Path) -> list[tuple[int, object]]:
+    """Ordena 2_arquivo antes de 10_arquivo, como no Explorador."""
+    parts = re.split(r"(\d+)", clean_filename(path.name).casefold())
+    return [
+        (0, int(part)) if part.isdigit() else (1, part)
+        for part in parts
+    ]
+
+
+def is_numbered_export_name(path: Path) -> bool:
+    """Identifica nomes genéricos como 1_MULTA.pdf ou 02-arquivo.pdf."""
+    return bool(re.match(r"^\d+[\s_.-]+", clean_filename(path.name)))
+
+
+def associate_numbered_exports(
+    messages: list[Message],
+    attachment_index: dict[str, Path],
+    used_paths: set[Path],
+    output_dir: Path,
+) -> None:
+    """Associa anexos renomeados pela ordem, somente quando não há ambiguidade.
+
+    Para cada extensão, a associação ocorre apenas se a quantidade de anexos
+    não resolvidos for exatamente igual à quantidade de arquivos numerados e
+    ainda não utilizados. A ordem das mensagens é combinada com a ordem natural
+    dos arquivos (1, 2, 10), evitando palpites quando sobram candidatos.
+    """
+    unresolved_by_extension: dict[str, list[Message]] = {}
+    for message in messages:
+        if message.attachment_name and not message.attachment_url:
+            extension = Path(message.attachment_name).suffix.casefold()
+            unresolved_by_extension.setdefault(extension, []).append(message)
+
+    available_paths = {
+        path.resolve()
+        for path in attachment_index.values()
+        if path.resolve() not in used_paths
+    }
+
+    for extension, unresolved in unresolved_by_extension.items():
+        candidates = sorted(
+            (
+                path
+                for path in available_paths
+                if path.suffix.casefold() == extension
+                and is_numbered_export_name(path)
+            ),
+            key=natural_sort_key,
+        )
+
+        if not unresolved or len(candidates) != len(unresolved):
+            continue
+
+        for message, found in zip(unresolved, candidates):
+            message.attachment_url = attachment_url_for(found, output_dir)
+            message.attachment_type = attachment_kind(message.attachment_name or found.name)
+            message.attachment_source_name = found.name
+            used_paths.add(found.resolve())
+
+
 def parse_datetime(date_text: str, time_text: str, date_order: str) -> datetime:
     day_or_month_1, day_or_month_2, year = date_text.split("/")
     year_i = int(year)
@@ -182,6 +243,7 @@ def parse_export(
     effective_output_dir = output_dir if output_dir is not None else path.resolve().parent
 
     messages: list[Message] = []
+    used_attachment_paths: set[Path] = set()
     current: dict | None = None
 
     def flush_current() -> None:
@@ -205,6 +267,7 @@ def parse_export(
         attachment_name = None
         attachment_url = None
         attachment_type = None
+        attachment_source_name = None
         am = ATTACHMENT_RE.search(text)
         if am:
             attachment_name = clean_filename(am.group("name"))
@@ -212,6 +275,8 @@ def parse_export(
             if found:
                 attachment_url = attachment_url_for(found, effective_output_dir)
                 attachment_type = attachment_kind(attachment_name)
+                attachment_source_name = found.name
+                used_attachment_paths.add(found.resolve())
         messages.append(
             Message(
                 timestamp=dt.isoformat(),
@@ -223,6 +288,7 @@ def parse_export(
                 attachment_name=attachment_name,
                 attachment_url=attachment_url,
                 attachment_type=attachment_type,
+                attachment_source_name=attachment_source_name,
             )
         )
         current = None
@@ -265,6 +331,12 @@ def parse_export(
             )
 
     flush_current()
+    associate_numbered_exports(
+        messages,
+        attachment_index,
+        used_attachment_paths,
+        effective_output_dir,
+    )
     return messages
 
 
@@ -917,6 +989,14 @@ def main() -> int:
         for m in messages
         if m.attachment_name and not m.attachment_url
     ]
+    automatic_matches = [
+        (m.attachment_name, m.attachment_source_name)
+        for m in messages
+        if m.attachment_name
+        and m.attachment_source_name
+        and clean_filename(m.attachment_name).casefold()
+        != clean_filename(m.attachment_source_name).casefold()
+    ]
 
     if not messages:
         parser.error(
@@ -942,6 +1022,10 @@ def main() -> int:
     print(f"Anexos referenciados no TXT: {referenced}")
     print(f"Anexos localizados: {resolved}")
     print(f"Anexos não localizados: {referenced - resolved}")
+    if automatic_matches:
+        print(f"Anexos associados automaticamente: {len(automatic_matches)}")
+        for expected_name, source_name in automatic_matches:
+            print(f"  - {expected_name} <- {source_name}")
     if missing_names:
         print("Primeiros anexos não encontrados:")
         for name in missing_names[:5]:
